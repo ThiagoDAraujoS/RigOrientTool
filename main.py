@@ -62,11 +62,52 @@ class RecursiveFramework:
         RecursiveFramework._perform_expressions(bone, parent, self.backward_expressions)
 
 
-        for expression in self.backward_expressions:
-            expression.run(bone, None)
+class RecursiveToolWindow(object):
+    WINDOW_NAME = "BONE_SWIPE"
+
+    def __init__(self, tool_ref):
+        self.rf: RecursiveFramework = tool_ref
+        self.window = None
+
+    def show(self):
+        if cmds.window(RecursiveToolWindow.WINDOW_NAME, exists=True):
+            cmds.deleteUI(RecursiveToolWindow.WINDOW_NAME, window=True)
+        self.window = cmds.window(RecursiveToolWindow.WINDOW_NAME, title="Bone Swipe", widthHeight=(300, 100))
+        self._build()
+        cmds.showWindow(self.window)
+
+    def _build(self):
+        root_element = cmds.columnLayout(adjustableColumn=True)
+        cmds.textFieldGrp(tcc=self.on_predicate_text_changed)
+        cmds.button(label="Perform", command=self.on_perform_click)
+
+    def on_perform_click(self, *_):
+        self.rf.transverse(on_no_bone_selected=self.on_no_selected_bone)
+
+    def on_predicate_text_changed(self, value, *_):
+        global ex
+        ex = value
+
+    def on_no_selected_bone(self):
+        cmds.confirmDialog(title="Warning", message="No bones were selected.", icon="warning", button=["OK"])
+
+
+def action(bone: str, *_) -> None:
+    cube = cmds.polyCube()[0]
+    cmds.matchTransform(cube, bone)
 
 
 if __name__ == '__main__':
     rf = RecursiveFramework()
-    rf.root = "test"
-    rf.transverse(rf.root)
+    expression = Expression(action_delegate=action, predicate_delegate=lambda b, *_: eval(ex))
+    rf.backward_expressions = [expression]
+    window = RecursiveToolWindow(rf)
+    window.show()
+
+
+    # fingy_expression = Expression(action_delegate=action, predicate_delegate=lambda b, *_: b.endswith("fingy"))
+    # rf = RecursiveFramework()
+    # rf.backward_expressions.append(fingy_expression)
+    # rf.root = "test"
+#
+    # rf.transverse(rf.root)
