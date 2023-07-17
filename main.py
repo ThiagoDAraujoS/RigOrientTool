@@ -4,22 +4,14 @@ from abc import abstractmethod
 
 
 class Expression:
-    """ This abstract class defines a predicate + action combo.
-    Once the predicate(bone) returns true, performs the action()"""
-    @abstractmethod
-    def _predicate(self, bone: str, data) -> bool:
-        """ This abstract method defines a question, if this returns true, the action will be performed """
-        return True
+    def __init__(self, action_delegate, predicate_delegate):
+        self._action = action_delegate
+        self._predicate = predicate_delegate
 
-    @abstractmethod
-    def _action(self, bone: str, data) -> None:
-        """ This abstract method defines an action, once the predicate returns true, this method will run """
-        pass
-
-    def run(self, bone, data):
+    def run(self, bone, *data):
         """ This method checks the predicate then runs the action """
-        if self._predicate(bone, data):
-            self._action(bone, data)
+        if self._predicate(bone, *data):
+            self._action(bone, *data)
 
 
 class RecursiveFramework:
