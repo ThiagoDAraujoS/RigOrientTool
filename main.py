@@ -19,10 +19,19 @@ class Expression:
 
 
 class RecursiveFramework:
-    def __int__(self):
+    def __init__(self):
         self.root: str = ""
         self.forward_expressions: list[Expression] = []
         self.backward_expressions: list[Expression] = []
+
+    def transverse(self, on_no_bone_selected=None):
+        selected_objects = cmds.ls(selection=True, type="joint")
+        if not selected_objects:
+            if on_no_bone_selected:
+                on_no_bone_selected()
+            return
+        bone = selected_objects[0]
+        self.echo(bone, bone)
 
     # TODO: make sure the base joint has its values 0ed and the original values are added to the joint orient
     # TODO: all joint orient values are 0ed and they were moved to the rotate
@@ -31,7 +40,7 @@ class RecursiveFramework:
     # TODO: make iteration to return branch id
     # TODO? make iteration to perform predication and expression
     @staticmethod
-    def get_children(joint_name):
+    def _get_children(joint_name):
         return cmds.listRelatives(joint_name, children=True, type="joint") or []
 
     @staticmethod
@@ -45,14 +54,13 @@ class RecursiveFramework:
         if not bone:
             return None
 
-        for expression in self.forward_expressions:
-            expression.run(bone, None)
-
-        children = RecursiveFramework.get_children(bone)
+        RecursiveFramework._perform_expressions(bone, parent, self.forward_expressions)
+        children = RecursiveFramework._get_children(bone)
         if children:
             for child in children:
-                self.transverse(child)
-                print(child)
+                self.echo(child, bone)
+        RecursiveFramework._perform_expressions(bone, parent, self.backward_expressions)
+
 
         for expression in self.backward_expressions:
             expression.run(bone, None)
