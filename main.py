@@ -1,6 +1,10 @@
 from __future__ import annotations
 from maya import cmds
-from abc import abstractmethod
+
+# GLOBAL VARIABLES USED BY THE DYNAMIC EXPRESSIONS
+r_bone = ""
+r_parent = ""
+ex = ""
 
 
 class Expression:
@@ -30,7 +34,14 @@ class RecursiveFramework:
     def get_children(joint_name):
         return cmds.listRelatives(joint_name, children=True, type="joint") or []
 
-    def transverse(self, bone):
+    @staticmethod
+    def _perform_expressions(bone, parent, block):
+        global r_bone, r_parent
+        r_bone, r_parent = bone, parent
+        for expression in block:
+            expression.run(bone, parent)
+
+    def echo(self, bone, parent):
         if not bone:
             return None
 
