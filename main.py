@@ -1,11 +1,52 @@
 from __future__ import annotations
 from maya import cmds
 from functools import partial
+from maya.api.OpenMaya import MVector, MEulerRotation
 
 # GLOBAL VARIABLES USED BY THE DYNAMIC EXPRESSIONS
-r_bone = ""
-r_parent = ""
+BONE: Bone = None
+NAME: str = ""
+PATH = []
 ex = ""
+
+
+class Bone:
+    def __init__(self, name, parent_name, index):
+        self.name = name
+        self.translation = cmds.xform(name, query=True, translation=True, worldSpace=True)
+        self.rotation = cmds.xform(name, query=True, rotation=True, worldSpace=True)
+        self.scale = cmds.xform(name, query=True, scale=True)
+        self.child_count = len(cmds.listRelatives(name, children=True, type="joint") or [])
+        self.parent_name = parent_name
+        self.index = index
+
+
+def endswith(string):
+    return BONE.name.endswith(string)
+
+
+def startswith(string):
+    return BONE.name.startswith(string)
+
+
+def has_past(predicate):
+    return any([predicate(bone) for bone in PATH])
+
+
+def is_between(start_predicate, end_predicate):
+    global NAME, BONE
+    print(NAME, BONE)
+    temp_name, temp_bone = NAME, BONE
+    result = False
+    for bone in reversed(PATH):
+        NAME, BONE = BONE.name, bone
+        if end_predicate(bone):
+            break
+        if start_predicate(bone):
+            result = True
+            break
+        NAME, BONE = temp_name, temp_bone
+    return result
 
 
 class Expression:
@@ -18,6 +59,8 @@ class Expression:
         if self._predicate(bone, *data):
             self._action(bone, *data)
 
+
+# TODO ENSURE ROTATE GETS SUMMED TO JOINT ORIENT
 
 class RecursiveFramework:
     def __init__(self):
@@ -37,7 +80,7 @@ class RecursiveFramework:
                 on_no_bone_selected_callback()
             return
         bone = selected_objects[0]
-        self._echo(bone, bone)
+        self._echo(bone, bone, [])
 
     # TODO: make sure the base joint has its values 0ed and the original values are added to the joint orient
     # TODO: all joint orient values are 0ed and they were moved to the rotate
@@ -50,22 +93,30 @@ class RecursiveFramework:
         return cmds.listRelatives(joint_name, children=True, type="joint") or []
 
     @staticmethod
-    def _perform_expressions(block, bone, parent):
-        global r_bone, r_parent
-        r_bone, r_parent = bone, parent
-        for expression in block:
-            expression.run(bone, parent)
+    def _perform_expressions(block, bone, path):
+        global BONE, NAME, PATH
+        BONE, NAME, PATH = bone, bone.name, path
 
-    def _echo(self, bone, parent):
+        for expression in block:
+            expression.run(bone)
+
+    def _echo(self, bone, parent, path, index=0):
+        global BONE
+
         if not bone:
             return
 
-        RecursiveFramework._perform_expressions(bone, parent, self.forward_expressions)
+        path.append(bone)
+        index += 1
+        bone_instance = Bone(bone, parent, index)
+
+        RecursiveFramework._perform_expressions(self.forward_expressions, bone_instance, path)
         children = RecursiveFramework._get_children(bone)
         if children:
             for child in children:
-                self._echo(child, bone)
-        RecursiveFramework._perform_expressions(bone, parent, self.backward_expressions)
+                self._echo(child, bone, path)
+        path.pop()
+        RecursiveFramework._perform_expressions(self.backward_expressions, bone_instance, path)
 
 
 class RecursiveToolWindow(object):
@@ -175,14 +226,20 @@ class RecursiveToolWindowMk2(object):
         cmds.confirmDialog(title="Warning", message="No bones were selected.", icon="warning", button=["OK"])
 
 
-def action(bone: str, *_) -> None:
+def action(bone: Bone, *_) -> None:
     cube = cmds.polyCube()[0]
-    cmds.matchTransform(cube, bone)
+    cmds.matchTransform(cube, bone.name)
+
+
+def jointOrient(bone: Bone, *_) -> None:
+    cmds.xform(bone.name, relative=True, objectSpace=True, rotation=[0.0, 0.0, 0.0])
+    cmds.joint(bone.name, edit=True, zeroScaleOrient=True)
+    cmds.makeIdentity(bone.name, apply=True)
 
 
 if __name__ == '__main__':
     rf = RecursiveFramework()
-    expression = Expression(action=action, predicate=lambda b, *_: eval(ex))
+    expression = Expression(action=jointOrient, predicate=lambda b, *_: eval(ex))
     rf.backward_expressions = [expression]
     window = RecursiveToolWindow(rf)
     window.show()
